@@ -2,3 +2,9 @@
 build
 tags
 .editorconfig
+.vs/
+PID-Control.vcxproj.user
+PID-Control.vcxproj
+PID-Control.sln
+PID-Control.vcxproj.filters
+PID-Control.sln.DotSettings.user
