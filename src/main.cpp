@@ -55,12 +55,10 @@ int main()
     //steer_pid.init(0.22639450, 0.00117619, 5.06311788);  
   
     //pid.init(0.2, 0.01, 2.0, 0.05, 0.005, 0.5);
-    pid.init(0.01021000, 0.00101000, 1.00070000, 0.1, 0.5, 0.05, true, false); // initial parameter tried out by constant speed of about 10 mph
+    //pid.init(0.01021000, 0.00101000, 1.00070000, 0.1, 0.5, 0.05, true, false); // initial parameter tried out by constant speed of about 10 mph
+    pid.init(0.01097784, 0.00112127, 1.10077000, 0.1, 0.5, 0.05, false, false); // initial parameter tried out by constant speed of about 10 mph
 
-    //Steer parameter Kp : 0.01109828 Ki : 0.00112153 Kd : 1.10077000)
-
-
-
+ 
     h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char* data, size_t length, uWS::OpCode opCode)
     {
         // "42" at the start of the message means there's a websocket message event.
