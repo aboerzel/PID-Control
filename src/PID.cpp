@@ -11,7 +11,7 @@ PID::PID()
 PID::~PID()
 = default;
 
-void PID::init(const double kp, const double ki, const double kd, const double k_cte, const double k_steer, const double k_speed, const bool twiddle)
+void PID::init(const double kp, const double ki, const double kd, const double k_cte, const double k_steer, const double k_speed, const bool twiddle_steer, const bool twiddle_speed)
 {
     steer_p_[0] = kp; 
     steer_p_[1] = ki; 
@@ -32,7 +32,8 @@ void PID::init(const double kp, const double ki, const double kd, const double k
     speed_dp_[1] = speed_p_[1] / 10;
     speed_dp_[2] = speed_p_[2] / 10;
 
-    twiddle_enabled = twiddle;
+    twiddle_steer_ = twiddle_steer;
+    twiddle_speed_ = twiddle_speed;
 }
 
 void PID::update_error(const double cte, const double speed, const double angle)
@@ -66,7 +67,7 @@ double PID::steer_control()
 {
     auto control = -steer_p_[0] * p_error_ - steer_p_[1] * i_error_ - steer_p_[2] * d_error_;
 
-    // Limit speed between -1.0 and 1.0
+    // Limit speed control between -1.0 and 1.0
     if (control > 1.0)
         control = 1.0;
     else if (control < -1.0)
@@ -83,7 +84,7 @@ double PID::speed_control()
 bool PID::twiddle()
 {
     // Do nothing if twiddle disabled or finished
-    if (!twiddle_enabled || twiddle_finished)
+    if (!twiddle_steer_ || twiddle_steer_finished_ && !twiddle_speed_ || twiddle_speed_finished_)
         return false;
 
     printf("Twiddle %d : total cte: %4.8f - total speed err: %4.8f\n", twiddle_update_count_, cte_sum_, speed_err_sum_);
@@ -101,27 +102,29 @@ bool PID::twiddle()
         i_error_ = 0;
         d_error_ = 0;
 
-        // Check if the steer twiddle goal has been reached
-        const auto twiddle_steer_finished = std::accumulate(steer_dp_.begin(), steer_dp_.end(), 0.0) <= steer_tolerance_;
-        if (!twiddle_steer_finished)
+        if (!twiddle_steer_finished_)
         {
-            // twiddle steer parameter and reset cte
-            twiddle_update(twiddle_step_steer_, twiddle_steer_param_, cte_sum_, best_steer_err_, steer_p_, steer_dp_, best_steer_p_);
-            cte_sum_ = 0;  
+            // Check if the steer twiddle goal has been reached
+            twiddle_steer_finished_ = std::accumulate(steer_dp_.begin(), steer_dp_.end(), 0.0) <= steer_tolerance_;
+            if (!twiddle_steer_finished_)
+            {
+                // twiddle steer parameter and reset cte
+                twiddle_update(twiddle_step_steer_, twiddle_steer_param_, cte_sum_, best_steer_err_, steer_p_, steer_dp_, best_steer_p_);
+                cte_sum_ = 0;
+            }
         }
 
-        // Check if the speed twiddle goal has been reached
-        const auto twiddle_speed_finished = std::accumulate(speed_dp_.begin(), speed_dp_.end(), 0.0) <= speed_tolerance_;
-        if (twiddle_speed_finished)
+        if (!twiddle_speed_finished_)
         {
-            // twiddle speed parameter and reset speed error
-            twiddle_update(twiddle_step_speed_, twiddle_speed_param_, speed_err_sum_, best_speed_err_, speed_p_, speed_dp_, best_speed_p_);
-            speed_err_sum_ = 0;
+            // Check if the speed twiddle goal has been reached
+            twiddle_speed_finished_ = std::accumulate(speed_dp_.begin(), speed_dp_.end(), 0.0) <= speed_tolerance_;
+            if (twiddle_speed_finished_)
+            {
+                // twiddle speed parameter and reset speed error
+                twiddle_update(twiddle_step_speed_, twiddle_speed_param_, speed_err_sum_, best_speed_err_, speed_p_, speed_dp_, best_speed_p_);
+                speed_err_sum_ = 0;
+            }
         }
-
-        // Stop when the twiddle target is reached
-        if (twiddle_steer_finished && twiddle_speed_finished)
-            twiddle_finished = true;
     }
 
     // Wait for NUM_TWIDDLE_UPDATES error updates before next twiddle update

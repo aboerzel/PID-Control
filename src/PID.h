@@ -23,9 +23,10 @@ public:
      * \param k_cte Cross-tracking coefficient for speed control
      * \param k_steer Steering coefficient for speed control
      * \param k_speed Speed coefficient for speed control
-     * \param twiddle Enable/disable twiddle
+     * \param twiddle_steer Enable/disable twiddle for steering controller
+     * \param twiddle_speed Enable/disable twiddle for speed controller
      */
-    void init(double kp, double ki, double kd, double k_cte, double k_steer, double k_speed, bool twiddle);
+    void init(double kp, double ki, double kd, double k_cte, double k_steer, double k_speed, bool twiddle_steer, bool twiddle_speed);
 
     /**
      * \brief Update the error variables based on cross-tracking error, speed and steering angle (CTE).
@@ -91,8 +92,10 @@ private:
     std::vector<double> steer_dp_ = { 1, 1, 1};     // twiddle coefficients for steering
     std::vector<double> speed_dp_ = { 1, 1, 1 };    // twiddle coefficients for speed
 
-    bool twiddle_enabled = false;   // Flag to enable / disable twiddle 
-    bool twiddle_finished = false;  // Flag for the achieved twiddle goal
+    bool twiddle_steer_ = false;   // Flag to enable / disable twiddle for steering controller
+    bool twiddle_speed_ = false;   // Flag to enable / disable twiddle for speed controller
+    bool twiddle_steer_finished_ = false;  // Twiddle goal achieved for steering controller
+    bool twiddle_speed_finished_ = false;  // Twiddle goal achieved for steering controller
 
     double speed_err_sum_ = 0;  // Total speed error
     double cte_sum_ = 0;        // Total steer error     
