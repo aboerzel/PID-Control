@@ -11,15 +11,17 @@ PID::PID()
 PID::~PID()
 = default;
 
-void PID::init(const double kp, const double ki, const double kd, const double k_cte, const double k_steer, const double k_speed, const bool twiddle_steer, const bool twiddle_speed)
+void PID::init(const double kp, const double ki, const double kd,
+               const double k_cte, const double k_steer, const double k_speed,
+               const bool twiddle_steer, const bool twiddle_speed)
 {
-    steer_p_[0] = kp; 
-    steer_p_[1] = ki; 
-    steer_p_[2] = kd; 
+    steer_p_[0] = kp;
+    steer_p_[1] = ki;
+    steer_p_[2] = kd;
 
-    speed_p_[0] = k_cte; 
-    speed_p_[1] = k_steer; 
-    speed_p_[2] = k_speed; 
+    speed_p_[0] = k_cte;
+    speed_p_[1] = k_steer;
+    speed_p_[2] = k_speed;
 
     best_steer_p_ = steer_p_;
     best_speed_p_ = speed_p_;
@@ -45,9 +47,9 @@ void PID::update_error(const double cte, const double speed, const double angle)
     }
 
     // Calculate errors
-    d_error_ = cte - p_error_; 
-    i_error_ += cte;    
-    p_error_ = cte; 
+    d_error_ = cte - p_error_;
+    i_error_ += cte;
+    p_error_ = cte;
 
     steer_error_ = fabs(angle);
     speed_error_ = fabs(speed);
@@ -55,7 +57,7 @@ void PID::update_error(const double cte, const double speed, const double angle)
     // Calculate total errors
     cte_sum_ += cte * cte;
     speed_err_sum_ += speed_error_ * (1 / (fabs(cte) + 0.5)) / 100;
-   
+
     printf("Steer parameter Kp:    %.08f Ki:      %.08f Kd:      %.08f)\n", steer_p_[0], steer_p_[1], steer_p_[2]);
     printf("Best steer par. Kp:    %.08f Ki:      %.08f Kd:      %.08f)\n", best_steer_p_[0], best_steer_p_[1], best_steer_p_[2]);
 
@@ -78,7 +80,9 @@ double PID::steer_control()
 
 double PID::speed_control()
 {
-    return speed_p_[0] * (1 / (fabs(p_error_) + 0.0001)) + speed_p_[1] * (1 / (steer_error_ + 0.0001)) + speed_p_[2] * (1 / (speed_error_ + 0.0001));
+    return speed_p_[0] * (1 / (fabs(p_error_) + 0.0001)) +
+           speed_p_[1] * (1 / (steer_error_ + 0.0001)) +
+           speed_p_[2] * (1 / (speed_error_ + 0.0001));
 }
 
 bool PID::twiddle()
@@ -92,7 +96,7 @@ bool PID::twiddle()
 
     auto reset_simulator = false;
 
-    if (twiddle_update_count_ == 2) 
+    if (twiddle_update_count_ == 2)
     {
         // Reset simulator when control coefficients are changed 
         reset_simulator = true;
@@ -140,18 +144,19 @@ bool PID::twiddle()
     return reset_simulator;
 }
 
-void PID::twiddle_update(unsigned& step, unsigned& param, const double err, double& best_err, std::vector<double>& p, std::vector<double>& dp, std::vector<double>& best_p)
+void PID::twiddle_update(unsigned& step, unsigned& param, const double err, double& best_err,
+                         std::vector<double>& p, std::vector<double>& dp, std::vector<double>& best_p)
 {
-    if (step == 0) 
+    if (step == 0)
     {
         // Start with increment
         p[param] += dp[param];
         step = 1;
     }
-    else if (step == 1) 
+    else if (step == 1)
     {
         // Last update was an increment
-        if (err < best_err) 
+        if (err < best_err)
         {
             // Save best parameter and error and increment current parameter and increase dp
             best_err = err;
@@ -162,24 +167,24 @@ void PID::twiddle_update(unsigned& step, unsigned& param, const double err, doub
             if (++param == p.size()) param = 0;
             step = 0;
         }
-        else 
+        else
         {
             // Revert last increment and and go in the opposite direction
             p[param] -= 2 * dp[param];
             step = 2;
         }
     }
-    else if (step == 2) 
+    else if (step == 2)
     {
         // Last update was an decrement
-        if (err < best_err) 
+        if (err < best_err)
         {
             // Save best parameter and error and increment current parameter and increase dp
             best_err = err;
             best_p = p;
             dp[param] *= 1.1;
         }
-        else 
+        else
         {
             // Revert last decrement and decrease dp
             p[param] += dp[param];

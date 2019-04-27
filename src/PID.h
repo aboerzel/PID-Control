@@ -26,7 +26,9 @@ public:
      * \param twiddle_steer Enable/disable twiddle for steering controller
      * \param twiddle_speed Enable/disable twiddle for speed controller
      */
-    void init(double kp, double ki, double kd, double k_cte, double k_steer, double k_speed, bool twiddle_steer, bool twiddle_speed);
+    void init(double kp, double ki, double kd,
+              double k_cte, double k_steer, double k_speed,
+              bool twiddle_steer, bool twiddle_speed);
 
     /**
      * \brief Update the error variables based on cross-tracking error, speed and steering angle (CTE).
@@ -66,9 +68,10 @@ private:
      * \param dp Current twiddle coefficients
      * \param best_p Best control coefficients
      */
-    static void twiddle_update(unsigned& step, unsigned& param, double err, double& best_err, std::vector<double>& p, std::vector<double>& dp, std::vector<double>& best_p);
+    static void twiddle_update(unsigned& step, unsigned& param, double err, double& best_err,
+                               std::vector<double>& p, std::vector<double>& dp, std::vector<double>& best_p);
 
-    bool is_initialized_ = false;   // Initialized flag
+    bool is_initialized_ = false; // Initialized flag
 
     /*
      * Errors
@@ -77,45 +80,45 @@ private:
     double i_error_{}; // Integral error
     double d_error_{}; // Derivative error
 
-    double speed_error_{};  // Speed error
-    double steer_error_{};  // Steer error
+    double speed_error_{}; // Speed error
+    double steer_error_{}; // Steer error
 
     /*
     * Coefficients
     */
-    std::vector<double> steer_p_ = { 0, 0, 0 }; // Steering control coefficients
-    std::vector<double> speed_p_ = { 0, 0, 0 }; // Speed control coefficients
+    std::vector<double> steer_p_ = {0, 0, 0}; // Steering control coefficients
+    std::vector<double> speed_p_ = {0, 0, 0}; // Speed control coefficients
 
     /*
-    * Twiddling coefficients
+    * Twiddle
     */
-    std::vector<double> steer_dp_ = { 1, 1, 1};     // twiddle coefficients for steering
-    std::vector<double> speed_dp_ = { 1, 1, 1 };    // twiddle coefficients for speed
+    std::vector<double> steer_dp_ = {1, 1, 1}; // twiddle coefficients for steering
+    std::vector<double> speed_dp_ = {1, 1, 1}; // twiddle coefficients for speed
 
-    bool twiddle_steer_ = false;   // Flag to enable / disable twiddle for steering controller
-    bool twiddle_speed_ = false;   // Flag to enable / disable twiddle for speed controller
-    bool twiddle_steer_finished_ = false;  // Twiddle goal achieved for steering controller
-    bool twiddle_speed_finished_ = false;  // Twiddle goal achieved for steering controller
+    bool twiddle_steer_ = false; // Flag to enable / disable twiddle for steering controller
+    bool twiddle_speed_ = false; // Flag to enable / disable twiddle for speed controller
+    bool twiddle_steer_finished_ = false; // Twiddle goal achieved for steering controller
+    bool twiddle_speed_finished_ = false; // Twiddle goal achieved for steering controller
 
-    double speed_err_sum_ = 0;  // Total speed error
-    double cte_sum_ = 0;        // Total steer error     
+    double speed_err_sum_ = 0; // Total speed error
+    double cte_sum_ = 0; // Total steer error     
 
-    int twiddle_update_count_ = 0;  // Number of error updates between twiddle updates
+    int twiddle_update_count_ = 0; // Number of error updates between twiddle updates
 
-    unsigned twiddle_step_steer_ = 0;   // Current twiddle step for steering
-    unsigned twiddle_step_speed_ = 0;   // Current twiddle step for speed
+    unsigned twiddle_step_steer_ = 0; // Current twiddle step for steering
+    unsigned twiddle_step_speed_ = 0; // Current twiddle step for speed
 
-    unsigned twiddle_steer_param_ = 0;  // Current twiddle parameter for steering
-    unsigned twiddle_speed_param_ = 0;  // Current twiddle parameter for speed
+    unsigned twiddle_steer_param_ = 0; // Current twiddle parameter for steering
+    unsigned twiddle_speed_param_ = 0; // Current twiddle parameter for speed
 
-    std::vector<double> best_steer_p_ = { 0, 0, 0 };    // Best steering control coefficients so far
-    std::vector<double> best_speed_p_ = { 0, 0, 0 };    // Best speed control coefficients so far
+    std::vector<double> best_steer_p_ = {0, 0, 0}; // Best steering control coefficients so far
+    std::vector<double> best_speed_p_ = {0, 0, 0}; // Best speed control coefficients so far
 
-    double best_steer_err_ = std::numeric_limits<double>::infinity();   // Best steering error so far
-    double best_speed_err_ = std::numeric_limits<double>::infinity();   // Best speed error so far
+    double best_steer_err_ = std::numeric_limits<double>::infinity(); // Best steering error so far
+    double best_speed_err_ = std::numeric_limits<double>::infinity(); // Best speed error so far
 
-    double steer_tolerance_ = 0.0000001;    // twiddle goal for steering
-    double speed_tolerance_ = 0.0000001;    // twiddle goal for speed
+    double steer_tolerance_ = 0.0000001; // twiddle goal for steering
+    double speed_tolerance_ = 0.0000001; // twiddle goal for speed
 };
 
 #endif  // PID_H
