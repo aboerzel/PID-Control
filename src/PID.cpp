@@ -62,7 +62,7 @@ void PID::update_error(const double cte, const double speed, const double angle)
     printf("Best steer par. Kp:    %.08f Ki:      %.08f Kd:      %.08f)\n", best_steer_p_[0], best_steer_p_[1], best_steer_p_[2]);
 
     printf("Speed parameter K_cte: %.08f K_steer: %.08f K_speed: %.08f)\n", speed_p_[0], speed_p_[1], speed_p_[2]);
-    printf("Best speed par. Kp:    %.08f Ki:      %.08f Kd:      %.08f)\n", best_steer_p_[0], best_steer_p_[1], best_steer_p_[2]);
+    printf("Best speed par. K_cte: %.08f K_steer: %.08f K_speed: %.08f)\n", best_steer_p_[0], best_steer_p_[1], best_steer_p_[2]);
 }
 
 double PID::steer_control()
@@ -88,7 +88,7 @@ double PID::speed_control()
 bool PID::twiddle()
 {
     // Do nothing if twiddle disabled or finished
-    if (!twiddle_steer_ || twiddle_steer_finished_ && !twiddle_speed_ || twiddle_speed_finished_)
+    if ((!twiddle_steer_ || twiddle_steer_finished_) && (!twiddle_speed_ || twiddle_speed_finished_))
         return false;
 
     printf("Twiddle %d : total cte: %4.8f - total speed err: %4.8f\n", twiddle_update_count_, cte_sum_, speed_err_sum_);
