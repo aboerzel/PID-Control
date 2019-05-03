@@ -1,75 +1,93 @@
 #include "PID.h"
 #include <iostream>
 #include <numeric>
-#include <math.h>
+#include <algorithm>
 
-#define NUM_TWIDDLE_UPDATES 1000
-
-PID::PID()
-= default;
+PID::PID(const double kp, const double ki, const double kd)
+{
+    p_[0] = kp;
+    p_[1] = ki;
+    p_[2] = kd;
+}
 
 PID::~PID()
 = default;
 
-void PID::init(const double kp, const double ki, const double kd,
-               const double k_cte, const double k_steer, const double k_speed,
-               const bool twiddle_steer, const bool twiddle_speed)
+void PID::twiddle_one_param(const unsigned param, const double twiddle_coefficient, const double tolerance,
+                            const int stabilization_steps, const int twiddle_steps)
 {
-    steer_p_[0] = kp;
-    steer_p_[1] = ki;
-    steer_p_[2] = kd;
+    current_param_ = param;
+    dp_[param] = twiddle_coefficient;
 
-    speed_p_[0] = k_cte;
-    speed_p_[1] = k_steer;
-    speed_p_[2] = k_speed;
+    tolerance_ = tolerance;
 
-    best_steer_p_ = steer_p_;
-    best_speed_p_ = speed_p_;
+    stabilization_steps_ = std::max(stabilization_steps, 1);;
+    twiddle_update_steps_ = twiddle_steps;
 
-    steer_dp_[0] = steer_p_[0] / 10;
-    steer_dp_[1] = steer_p_[1] / 10;
-    steer_dp_[2] = steer_p_[2] / 10;
-
-    speed_dp_[0] = speed_p_[0] / 10;
-    speed_dp_[1] = speed_p_[1] / 10;
-    speed_dp_[2] = speed_p_[2] / 10;
-
-    twiddle_steer_ = twiddle_steer;
-    twiddle_speed_ = twiddle_speed;
+    twiddle_all_params_ = false;
+    twiddle_enabled_ = true;
 }
 
-void PID::update_error(const double cte, const double speed, const double angle)
+void PID::twiddle_all_params(const double dp, const double di, const double dd, const double tolerance,
+                             const int stabilization_steps, const int twiddle_steps)
 {
-    if (!is_initialized_)
+    current_param_ = 0;
+    dp_[0] = dp;
+    dp_[1] = di;
+    dp_[2] = dd;
+
+    tolerance_ = tolerance;
+
+    stabilization_steps_ = std::max(stabilization_steps, 1);
+    twiddle_update_steps_ = twiddle_steps;
+
+    twiddle_all_params_ = true;
+    twiddle_enabled_ = true;
+}
+
+void PID::update_error(const double error)
+{
+    if (update_count_ == 0)
     {
-        p_error_ = cte;
-        is_initialized_ = true;
+        p_error_ = error;
     }
 
-    // Calculate errors
-    d_error_ = cte - p_error_;
-    i_error_ += cte;
-    p_error_ = cte;
+    // Calculate errors  
+    d_error_ = error - p_error_;
+    i_error_ += error;
+    p_error_ = error;
 
-    steer_error_ = fabs(angle);
-    speed_error_ = fabs(speed);
+    printf("******************** Update %d *******************\n", update_count_);
+    printf("p error    : %4.4f\n", p_error_);
+    printf("i error    : %4.4f\n", i_error_);
+    printf("d error    : %4.4f\n", d_error_);
 
-    // Calculate total errors
-    cte_sum_ += cte * cte;
-    speed_err_sum_ += speed_error_ * (1 / (fabs(cte) + 0.5)) / 100;
+    // Calculate total error
+    if (update_count_ > stabilization_steps_)
+    {
+        total_error_ += error * error;
+    }
 
-    printf("Steer parameter Kp:    %.08f Ki:      %.08f Kd:      %.08f)\n", steer_p_[0], steer_p_[1], steer_p_[2]);
-    printf("Best steer par. Kp:    %.08f Ki:      %.08f Kd:      %.08f)\n", best_steer_p_[0], best_steer_p_[1], best_steer_p_[2]);
+    if (twiddle_enabled_ && update_count_ >= twiddle_update_steps_)
+    {
+        twiddle();
+    }
 
-    printf("Speed parameter K_cte: %.08f K_steer: %.08f K_speed: %.08f)\n", speed_p_[0], speed_p_[1], speed_p_[2]);
-    printf("Best speed par. K_cte: %.08f K_steer: %.08f K_speed: %.08f)\n", best_steer_p_[0], best_steer_p_[1], best_steer_p_[2]);
+    printf("Current  kp: %.08f ki: %.08f kd: %.08f\n", p_[0], p_[1], p_[2]);
+    printf("Best     kp: %.08f ki: %.08f kd: %.08f\n", best_p_[0], best_p_[1], best_p_[2]);
+    printf("Twiddle  dp: %.08f di: %.08f dd: %.08f\n", dp_[0], dp_[1], dp_[2]);
+    printf("Twiddle tot: %.08f\n", std::accumulate(dp_.begin(), dp_.end(), 0.0));
+    printf("Total error: %.3f\n", total_error_);
+    printf("Best  error: %.3f\n", best_error_);
+
+    update_count_++;
 }
 
-double PID::steer_control()
+double PID::control()
 {
-    auto control = -steer_p_[0] * p_error_ - steer_p_[1] * i_error_ - steer_p_[2] * d_error_;
+    auto control = -p_[0] * p_error_ - p_[1] * i_error_ - p_[2] * d_error_;
 
-    // Limit speed control between -1.0 and 1.0
+    // Limit control between -1.0 and 1.0
     if (control > 1.0)
         control = 1.0;
     else if (control < -1.0)
@@ -78,121 +96,88 @@ double PID::steer_control()
     return control;
 }
 
-double PID::speed_control()
-{
-    return speed_p_[0] * (1 / (fabs(p_error_) + 0.0001)) +
-           speed_p_[1] * (1 / (steer_error_ + 0.0001)) +
-           speed_p_[2] * (1 / (speed_error_ + 0.0001));
-}
-
-bool PID::twiddle()
+void PID::twiddle()
 {
     // Do nothing if twiddle disabled or finished
-    if ((!twiddle_steer_ || twiddle_steer_finished_) && (!twiddle_speed_ || twiddle_speed_finished_))
-        return false;
-
-    printf("Twiddle %d : total cte: %4.8f - total speed err: %4.8f\n", twiddle_update_count_, cte_sum_, speed_err_sum_);
-    printf("Twiddle %d : best  cte: %4.8f - best  speed err: %4.8f\n", twiddle_update_count_, best_steer_err_, best_speed_err_);
-
-    auto reset_simulator = false;
-
-    if (twiddle_update_count_ == 2)
+    if (twiddle_finished_)
     {
-        // Reset simulator when control coefficients are changed 
-        reset_simulator = true;
-
-        // Reset error values
-        p_error_ = 0;
-        i_error_ = 0;
-        d_error_ = 0;
-
-        if (!twiddle_steer_finished_)
-        {
-            // Check if the steer twiddle goal has been reached
-            twiddle_steer_finished_ = std::accumulate(steer_dp_.begin(), steer_dp_.end(), 0.0) <= steer_tolerance_;
-            if (!twiddle_steer_finished_)
-            {
-                // twiddle steer parameter and reset cte
-                twiddle_update(twiddle_step_steer_, twiddle_steer_param_, cte_sum_, best_steer_err_, steer_p_, steer_dp_, best_steer_p_);
-                cte_sum_ = 0;
-            }
-        }
-
-        if (!twiddle_speed_finished_)
-        {
-            // Check if the speed twiddle goal has been reached
-            twiddle_speed_finished_ = std::accumulate(speed_dp_.begin(), speed_dp_.end(), 0.0) <= speed_tolerance_;
-            if (twiddle_speed_finished_)
-            {
-                // twiddle speed parameter and reset speed error
-                twiddle_update(twiddle_step_speed_, twiddle_speed_param_, speed_err_sum_, best_speed_err_, speed_p_, speed_dp_, best_speed_p_);
-                speed_err_sum_ = 0;
-            }
-        }
+        printf("Twiddle finished!\n");
+        return;
     }
 
-    // Wait for NUM_TWIDDLE_UPDATES error updates before next twiddle update
-    if (twiddle_update_count_ < NUM_TWIDDLE_UPDATES)
-    {
-        twiddle_update_count_ += 1;
-    }
-    else
-    {
-        twiddle_update_count_ = 0; // Start next twiddle update
-    }
-
-    return reset_simulator;
-}
-
-void PID::twiddle_update(unsigned& step, unsigned& param, const double err, double& best_err,
-                         std::vector<double>& p, std::vector<double>& dp, std::vector<double>& best_p)
-{
-    if (step == 0)
+    if (twiddle_step_ == 0)
     {
         // Start with increment
-        p[param] += dp[param];
-        step = 1;
+        p_[current_param_] += dp_[current_param_];
+        twiddle_step_ = 1;
     }
-    else if (step == 1)
+    else if (twiddle_step_ == 1)
     {
         // Last update was an increment
-        if (err < best_err)
+        if (total_error_ < best_error_)
         {
             // Save best parameter and error and increment current parameter and increase dp
-            best_err = err;
-            best_p = p;
-            dp[param] *= 1.1;
+            best_error_ = total_error_;
+            best_p_ = p_;
+            dp_[current_param_] *= 1.1;
+            p_[current_param_] += dp_[current_param_];
 
             // Choose next parameter
-            if (++param == p.size()) param = 0;
-            step = 0;
+            if (twiddle_all_params_)
+                if (++current_param_ == p_.size()) current_param_ = 0;
         }
         else
         {
             // Revert last increment and and go in the opposite direction
-            p[param] -= 2 * dp[param];
-            step = 2;
+            p_[current_param_] -= 2 * dp_[current_param_];
+            twiddle_step_ = 2;
         }
     }
-    else if (step == 2)
+    else if (twiddle_step_ == 2)
     {
         // Last update was an decrement
-        if (err < best_err)
+        if (total_error_ < best_error_)
         {
             // Save best parameter and error and increment current parameter and increase dp
-            best_err = err;
-            best_p = p;
-            dp[param] *= 1.1;
+            best_error_ = total_error_;
+            best_p_ = p_;
+            dp_[current_param_] *= 1.1;
         }
         else
         {
             // Revert last decrement and decrease dp
-            p[param] += dp[param];
-            dp[param] *= 0.9;
+            p_[current_param_] += dp_[current_param_];
+            dp_[current_param_] *= 0.9;
         }
 
+        p_[current_param_] += dp_[current_param_];
+        twiddle_step_ = 1;
+
         // Choose next parameter
-        if (++param == p.size()) param = 0;
-        step = 0;
+        if (twiddle_all_params_)
+            if (++current_param_ == p_.size()) current_param_ = 0;
     }
+
+    // Check if the twiddle goal has been reached
+    twiddle_finished_ = std::accumulate(dp_.begin(), dp_.end(), 0.0) < tolerance_;
+
+    // Reset total error
+    total_error_ = 0;
+
+    // Reset update count
+    update_count_ = 0;
+
+    // Reset simulator when control coefficients are changed 
+    restart_simulator();
+}
+
+void PID::restart_simulator()
+{
+    std::string reset_msg = "42[\"reset\",{}]";
+    server_.send(reset_msg.data(), reset_msg.length(), uWS::OpCode::TEXT);
+}
+
+void PID::set_server(uWS::WebSocket<uWS::SERVER> ws)
+{
+    server_ = ws;
 }

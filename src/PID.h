@@ -2,14 +2,22 @@
 #define PID_H
 #include <vector>
 #include <limits>
+#include <uWS/uWS.h>
+
 
 class PID
 {
 public:
+
     /**
      * Constructor
+     * 
+     * \brief Initializes the PID controller
+     * \param kp Proportional coefficient
+     * \param ki Integral coefficient
+     * \param kd Derivative coefficient
      */
-    PID();
+    PID(double kp, double ki, double kd);
 
     /**
      * Destructor.
@@ -17,109 +25,90 @@ public:
     virtual ~PID();
 
     /**
-     * \brief Initialize PID controller
-     * \param kp Proportional steering coefficient
-     * \param ki Integral steering coefficient
-     * \param kd Derivative steering coefficient
-     * \param k_cte Cross-tracking coefficient for speed control
-     * \param k_steer Steering coefficient for speed control
-     * \param k_speed Speed coefficient for speed control
-     * \param twiddle_steer Enable/disable twiddle for steering controller
-     * \param twiddle_speed Enable/disable twiddle for speed controller
+     * \brief Enable twiddle for only one parameter
+     * \param param Index of the parameter to be twiddled
+     * \param twiddle_coefficient Start twiddle delta 
+     * \param tolerance Twiddle goal
+     * \param stabilization_steps Number of error updates before total error calculation is started
+     * \param twiddle_steps Number of error updates between two twiddle steps
      */
-    void init(double kp, double ki, double kd,
-              double k_cte, double k_steer, double k_speed,
-              bool twiddle_steer, bool twiddle_speed);
+    void twiddle_one_param(unsigned param, double twiddle_coefficient, double tolerance, int stabilization_steps, int twiddle_steps);
 
     /**
-     * \brief Update the error variables based on cross-tracking error, speed and steering angle (CTE).
-     * \param cte Current cross-tracking error
-     * \param speed Current speed
-     * \param angle Current steering angle
+     * \brief Enable twiddle for all parameters
+     * \param dp Start twiddle delta for kp
+     * \param di Start twiddle delta for ki
+     * \param dd Start twiddle delta for kd
+     * \param tolerance Twiddle goal
+     * \param stabilization_steps Number of error updates before total error calculation is started
+     * \param twiddle_steps Number of error updates between two twiddle steps
      */
-    void update_error(double cte, double speed, double angle);
+    void twiddle_all_params(double dp, double di, double dd, double tolerance, int stabilization_steps, int twiddle_steps);
+    
+    /**
+    * \brief Update the error variables based on error value.
+    * \param error Error value
+    */ 
+    void update_error(double error);
 
     /**
-     * \brief Get steering control value
-     * \return Steering control value between -1.0 and 1.0
+     * \brief Get control value
+     * \return Control value
      */
-    double steer_control();
+    double control();
 
-    /**
-     * \brief Get speed control value
-     * \return Speed control value
+    /*
+     * Set the server for restarting simulator.
+     * @param ws The Websocket
      */
-    double speed_control();
-
-    /**
-     * \brief Optimizes the control coefficients using the Twiddle algorithm
-     * \return Flag indicating whether the simulator should be reset
-     */
-    bool twiddle();
+    void set_server(uWS::WebSocket<uWS::SERVER> ws);
 
 private:
 
+    /*
+    * Restarts the simulator
+    */
+    void restart_simulator();
+
     /**
-     * \brief Calculate new control coefficients
-     * \param step Last twiddle step
-     * \param param Last twiddle parameter
-     * \param err Current error
-     * \param best_err Best error
-     * \param p Current control coefficients
-     * \param dp Current twiddle coefficients
-     * \param best_p Best control coefficients
+     * \Performs twiddle step
      */
-    static void twiddle_update(unsigned& step, unsigned& param, double err, double& best_err,
-                               std::vector<double>& p, std::vector<double>& dp, std::vector<double>& best_p);
+    void twiddle();
 
-    bool is_initialized_ = false; // Initialized flag
+    double p_error_ = 0;    // Proportional error
+    double i_error_ = 0;    // Integral error
+    double d_error_ = 0;    // Derivation error
 
-    /*
-     * Errors
-    */
-    double p_error_{}; // Proportional error
-    double i_error_{}; // Integral error
-    double d_error_{}; // Derivative error
+    double total_error_ = 0; // Total error    
 
-    double speed_error_{}; // Speed error
-    double steer_error_{}; // Steer error
+    std::vector<double> p_ = { 0, 0, 0 }; // Control coefficients
 
-    /*
-    * Coefficients
-    */
-    std::vector<double> steer_p_ = {0, 0, 0}; // Steering control coefficients
-    std::vector<double> speed_p_ = {0, 0, 0}; // Speed control coefficients
+    int update_count_ = 0; // Number of error updates between twiddle updates
 
-    /*
-    * Twiddle
-    */
-    std::vector<double> steer_dp_ = {1, 1, 1}; // twiddle coefficients for steering
-    std::vector<double> speed_dp_ = {1, 1, 1}; // twiddle coefficients for speed
 
-    bool twiddle_steer_ = false; // Flag to enable / disable twiddle for steering controller
-    bool twiddle_speed_ = false; // Flag to enable / disable twiddle for speed controller
-    bool twiddle_steer_finished_ = false; // Twiddle goal achieved for steering controller
-    bool twiddle_speed_finished_ = false; // Twiddle goal achieved for steering controller
+    bool twiddle_enabled_ = false; // Enable/disable twiddle
 
-    double speed_err_sum_ = 0; // Total speed error
-    double cte_sum_ = 0; // Total steer error     
+    bool twiddle_all_params_ = false; // Switch to train only on parameter or all parameters
 
-    int twiddle_update_count_ = 0; // Number of error updates between twiddle updates
+    bool twiddle_finished_ = false; // Twiddle goal achieved
 
-    unsigned twiddle_step_steer_ = 0; // Current twiddle step for steering
-    unsigned twiddle_step_speed_ = 0; // Current twiddle step for speed
+    unsigned current_param_ = 0; // Index of the parameter to be twiddled
 
-    unsigned twiddle_steer_param_ = 0; // Current twiddle parameter for steering
-    unsigned twiddle_speed_param_ = 0; // Current twiddle parameter for speed
+    unsigned twiddle_step_ = 0; // Current twiddle step
 
-    std::vector<double> best_steer_p_ = {0, 0, 0}; // Best steering control coefficients so far
-    std::vector<double> best_speed_p_ = {0, 0, 0}; // Best speed control coefficients so far
+    double tolerance_ = 0; // Twiddle goal
 
-    double best_steer_err_ = std::numeric_limits<double>::infinity(); // Best steering error so far
-    double best_speed_err_ = std::numeric_limits<double>::infinity(); // Best speed error so far
+    int stabilization_steps_ = 1; // Number of error updates before total error calculation is started
 
-    double steer_tolerance_ = 0.0000001; // twiddle goal for steering
-    double speed_tolerance_ = 0.0000001; // twiddle goal for speed
+    int twiddle_update_steps_ = 0; // Number of error updates between two twiddle steps
+
+    double best_error_ = std::numeric_limits<double>::infinity(); // Best twiddled error so far
+
+    std::vector<double> dp_ = { 0, 0, 0 }; // Twiddle coefficients
+
+    std::vector<double> best_p_ = { 0, 0, 0 }; // Best twiddled control coefficients so far
+
+    uWS::WebSocket<uWS::SERVER> server_{}; // Websocket
 };
 
 #endif  // PID_H

@@ -1,9 +1,11 @@
-#include <math.h>
 #include <uWS/uWS.h>
 #include <iostream>
 #include <string>
 #include "json.hpp"
 #include "PID.h"
+
+#define MIN_SPEED 10.0
+#define MAX_SPEED 50.0
 
 // for convenience
 using nlohmann::json;
@@ -33,33 +35,17 @@ string hasData(string s)
     return "";
 }
 
-/**
- * \brief Helper method to restart the simulator
- * \param ws Websocket
- */
-void reset_simulator(uWS::WebSocket<uWS::SERVER>& ws)
-{
-    // reset
-    std::string msg("42[\"reset\", {}]");
-    ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-}
-
 int main()
 {
     uWS::Hub h;
 
-    // Construct and initialize PID controller
-    PID pid;
-    //steer_pid.init(0.2, 0.001, 5.0); // initial parameter
-    //steer_pid.init(0.220103, 0.000993, 4.999348);  // twiddle with constant speed about 10 mph
-    //steer_pid.init(0.22639450, 0.00117619, 5.06311788);  
-  
-    //pid.init(0.2, 0.01, 2.0, 0.05, 0.005, 0.5);
-    //pid.init(0.01021000, 0.00101000, 1.00070000, 0.1, 0.5, 0.05, true, false); // initial parameter tried out by constant speed of about 10 mph
-    pid.init(0.01097784, 0.00112127, 1.10077000, 0.1, 0.5, 0.05, false, false); // initial parameter tried out by constant speed of about 10 mph
+    PID steering_controller(0.115, 0.0, 2.0);
+    steering_controller.twiddle_one_param(2, 0.01, 0.000001, 100, 400);
 
- 
-    h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char* data, size_t length, uWS::OpCode opCode)
+    PID speed_controller(0.1, 0.0, 1.0);
+    //speed_controller.twiddle_all_params(0.01, 0.0, 0.01, 0.000001, 100, 400);
+   
+    h.onMessage([&steering_controller, &speed_controller](uWS::WebSocket<uWS::SERVER> ws, char* data, size_t length, uWS::OpCode opCode)
     {
         // "42" at the start of the message means there's a websocket message event.
         // The 4 signifies a websocket message
@@ -86,31 +72,35 @@ int main()
                      *   [-1, 1].
                      * NOTE: Feel free to play around with the throttle and speed.
                      *   Maybe use another PID controller to control the speed!
-                     */
+                     */         
 
                     // update errors and get control values for steering and speed
-                    pid.update_error(cte, speed, angle);
-                    const auto steer_control = pid.steer_control();
-                    const auto speed_control = pid.speed_control();
+                    steering_controller.update_error(cte);       
+                    const auto steer_control = steering_controller.control();
 
-                    // DEBUG
-                    std::cout << "CTE: " << cte << " Speed: " << speed << " Angle: " << angle << std::endl;
-                    std::cout << " Steer ctrl: " << steer_control << " Speed ctrl: " << speed_control << std::endl;
+                    // The smaller the steering angle, the greater the target speed
+                    const auto target_speed = (MAX_SPEED - MIN_SPEED) * (1.0 - steer_control * steer_control) + MIN_SPEED;
+                    const auto speed_error = speed - target_speed;
 
+                    speed_controller.update_error(speed_error);
+                    const auto speed_control = speed_controller.control();
+                                                    
+                    printf("**************** Control Monitoring ****************\n");
+                    printf("Speed        : %3.4f\n", speed);
+                    printf("Angle        : %3.4f\n", angle);
+                    printf("CTE          : %3.4f\n", cte);
+                    printf("Speed error  : %3.4f\n", speed_error);
+                    printf("Target speed : %3.4f\n", target_speed);
+                    printf("Steer ctrl   : %3.4f\n", steer_control);
+                    printf("Speed ctrl   : %3.4f\n", speed_control);
+                
                     json msgJson;
                     msgJson["steering_angle"] = steer_control;
-                    msgJson["throttle"] = 0.2; // speed_control;
+                    msgJson["throttle"] = 0.3; // speed_control;
                     auto msg = "42[\"steer\"," + msgJson.dump() + "]";
                     //std::cout << msg << std::endl;
-                    ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-
-                    // optimize control coefficients using twiddle
-                    if (pid.twiddle())
-                    {
-                        // restart simulator if twiddle has updated the coefficients
-                        reset_simulator(ws);
-                    }
-                                              
+                    ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); 
+       
                 } // end "telemetry" if
             }
             else
@@ -122,9 +112,11 @@ int main()
         } // end websocket message if
     }); // end h.onMessage
 
-    h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req)
+    h.onConnection([&h, &steering_controller, &speed_controller](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req)
     {
         std::cout << "Connected!!!" << std::endl;
+        steering_controller.set_server(ws);
+        speed_controller.set_server(ws);
     });
 
     h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code,
