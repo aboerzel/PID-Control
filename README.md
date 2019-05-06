@@ -5,7 +5,7 @@
 ## Project Introduction
 The goal of the project is to implement and parameterize a PID controller in C ++ that keeps the car in the lane in the simulator. The simulator permanently provides the PID controller with the current lateral deviation from the target track (cross-tracking error), as well as the current steering angle and the current speed of the car. Based on these values, the PID controller must provide the steering and speed (throttle) control values so that the car remains in lane at the highest possible speed.
 
-![](assets/intro.jpg)
+![](assets/demo-video.gif)
 
 ## Solution Description
 
@@ -27,59 +27,45 @@ The control value u(t) is calculated according to the following equation:
 * The term `D` is an estimate of the future trend of the error `e(t)` based on its current rate of change (derivative). That is, the faster the change, the greater the controlling or dampening effect of the `D` term. Via the gain factor `kd` is set how much the `D` term contributes to the control value `u(t)`.
 
 ### Controller Implementation
-The controller was implemented in class [PID.cpp](src/PID.cpp) and consists of the following three main tasks:
+The controller was implemented in class [PID.cpp](src/PID.cpp) and consists of the following two main tasks:
 
 **Error Calculation:**
 
-Calculates the current errors based on the lateral deviation from the lane (cross-tracking error), the current steering angle and the current speed delivered by the simulator.
-```
-void PID::update_error(const double cte, const double speed, const double angle)
-{
-    ...
-    
-    // Calculate errors
-    d_error_ = cte - p_error_; 
-    i_error_ += cte;    
-    p_error_ = cte; 
+Calculates the current errors based on the error and the current speed delivered by the simulator.
 
-    steer_error_ = fabs(angle);
-    speed_error_ = fabs(speed);
+```
+void PID::update_error(double error, double speed)
+{
+    if (update_count_ == 0)
+    {
+        p_error_ = error;
+    }
+
+    // Calculate errors  
+    d_error_ = error - p_error_;
+    i_error_ += error;
+    p_error_ = error;
     
     ...
 }
 ```
 
-**Steer Control:**
+**Control Value Calculation:**
 
-Calculates the current control value for steering based on the current errors and the steering coefficients `kp`, `ki`, `kd`.
+Calculates the current control value based on the current errors and the coefficients `kp`, `ki`, `kd`.
 
 ```
-double PID::steer_control()
+double PID::control()
 {
-    auto control = -steer_p_[0] * p_error_ - 
-                    steer_p_[1] * i_error_ - 
-                    steer_p_[2] * d_error_;
+   auto control = -1.0 * (p_[0] * p_error_ + p_[1] * i_error_ + p_[2] * d_error_);
 
-    // Limit speed control between -1.0 and 1.0
+    // Limit control between -1.0 and 1.0
     if (control > 1.0)
         control = 1.0;
     else if (control < -1.0)
         control = -1.0;
 
     return control;
-}
-```
-
-**Speed Control:**
-
-Calculates the current control value for speed based on the current errors and the speed coefficients `k_cte`, `k_steer`, `k_speed`.
-
-```
-double PID::speed_control()
-{
-    return speed_p_[0] * (1 / (fabs(p_error_) + 0.0001)) + 
-           speed_p_[1] * (1 / (steer_error_ + 0.0001)) + 
-           speed_p_[2] * (1 / (speed_error_ + 0.0001));
 }
 ```
 
@@ -96,11 +82,10 @@ The real challenge with this project was to determine the hyperparameters (`kp`,
 
 The parameters were determined by means of the [Twiddle algorithm](https://www.youtube.com/watch?v=2uQ2BSzDvXs), the procedure was as follows:
 
-1. First, the parameters `kp`, `ki` and `kd` were chosen by trial and error, so that the car stays one lap in lane at a constant speed of about 10 mps.
-2. In the second step, the steering control parameters `kp`, `ki` and `kd` were optimized using the Twiddle function at a constant speed of about 20 mps.
-3. The steering control parameters `kp`, `ki` and `kd` were optimized again with the Twiddle function at a constant speed of about 30 mps.
-4. Next, the parameters `k_cte`, `k_steer` and `k_speed` for controlling the speed were optimized using the Twiddle function.
-5. Finally, the twiddle function has been used to simultaneously optimize all the steering and speed control parameters.
+1. First, the parameters `kp`, `ki` and `kd` of the steering controller were chosen by trial and error, so that the car stays one lap in lane at a constant speed of about 10 mps (speed controller disabled).
+2. In the second step, the parameter `kp` was optimized using the twiddle function at a constant speed of about 30 mps.
+3. Next, the parameter `kd` was optimized by using the twiddle function. I omitted the parameter `ki` because it does not matter here.
+4. Finally, I have activated the speed controller to dynamically adjust the speed to the steering deflection. As a result, the car will run on straight sections at a higher speed while the speed is correspondingly reduced in curves. Here, a good result has already been achieved with the initial values.
 
 **Final Parameters:**
 
@@ -109,23 +94,23 @@ Here are the finally used hyperparameters:
 ***Steering-Controller:***
 
 |||
-|----|------------|
-| kp | 0.01105686 |
-| ki | 0.00112153 |
-| kd | 1.10077000 |
+|----|------|
+| kp | 0.11 |
+| ki | 0.0  |
+| kd | 1.23 |
 
 ***Speed-Controller:***
 
 |||
-|---------|------------|
-| k_cte   | 0.10100000 |
-| k_steer | 0.50000000 |
-| k_speed | 1.05000376 |
+|----|-----|
+| kp | 0.1 |
+| ki | 0.0 |
+| kd | 1.0 |
 
 ### Demo
 The following video shows the car driving one lap in the simulator:
 
-[![](assets/demo-video.jpg)](https://youtu.be/UJbwyKS844Q)
+[![](assets/demo-video.jpg)](https://youtu.be/cCA34V0hxpo)
 
 ## Dependencies
 
