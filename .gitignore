@@ -10,3 +10,5 @@ PID-Control.vcxproj.filters
 PID-Control.sln.DotSettings.user
 pid-controller.py
 Debug/
+assets/demo-video2.mp4
+assets/demo-video.mp4
