@@ -85,7 +85,7 @@ The parameters were determined by means of the [Twiddle algorithm](https://www.y
 1. First, the parameters `kp`, `ki` and `kd` of the steering controller were chosen by trial and error, so that the car stays one lap in lane at a constant speed of about 10 mps (speed controller disabled).
 2. In the second step, the parameter `kp` was optimized using the twiddle function at a constant speed of about 30 mps.
 3. Next, the parameter `kd` was optimized by using the twiddle function. I omitted the parameter `ki` because it does not matter here.
-4. Finally, I have activated the speed controller to dynamically adjust the speed to the steering deflection. As a result, the car will run on straight sections at a higher speed while the speed is correspondingly reduced in curves. Here, a good result has already been achieved with the initial values.
+4. Finally, I have activated the speed controller to dynamically adjust the target speed to the steering deflection. As a result, the car will run on straight sections at a higher speed while the speed is correspondingly reduced in curves. Here, a good result has already been achieved with the initial values.
 
 **Final Parameters:**
 
