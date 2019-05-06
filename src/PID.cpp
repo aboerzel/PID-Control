@@ -2,6 +2,7 @@
 #include <iostream>
 #include <numeric>
 #include <algorithm>
+#include <math.h>
 
 PID::PID(const double kp, const double ki, const double kd)
 {
@@ -45,7 +46,7 @@ void PID::twiddle_all_params(const double dp, const double di, const double dd, 
     twiddle_enabled_ = true;
 }
 
-void PID::update_error(const double error)
+void PID::update_error(const double error, const double speed)
 {
     if (update_count_ == 0)
     {
@@ -57,35 +58,53 @@ void PID::update_error(const double error)
     i_error_ += error;
     p_error_ = error;
 
+    // we want max. possible speed
+    const auto speed_error = 100 - fabs(speed);
+
     printf("******************** Update %d *******************\n", update_count_);
-    printf("p error    : %4.4f\n", p_error_);
-    printf("i error    : %4.4f\n", i_error_);
-    printf("d error    : %4.4f\n", d_error_);
+    printf("P error     : %4.4f\n", p_error_);
+    printf("I error     : %4.4f\n", i_error_);
+    printf("D error     : %4.4f\n", d_error_);
 
     // Calculate total error
     if (update_count_ > stabilization_steps_)
     {
-        total_error_ += error * error;
+        // minimal error and maximum speed
+        total_error_ += error * error + speed_error * speed_error;
     }
 
     if (twiddle_enabled_ && update_count_ >= twiddle_update_steps_)
     {
         twiddle();
+
+        // Reset errors after twiddle
+        p_error_ = 0;
+        i_error_ = 0;
+        d_error_ = 0;
+        total_error_ = 0;
+
+        // Reset update count
+        update_count_ = 0;
+
+        // Reset simulator when control coefficients are changed after twiddle
+        restart_simulator();
+    }
+    else
+    {
+        update_count_++;
     }
 
-    printf("Current  kp: %.08f ki: %.08f kd: %.08f\n", p_[0], p_[1], p_[2]);
-    printf("Best     kp: %.08f ki: %.08f kd: %.08f\n", best_p_[0], best_p_[1], best_p_[2]);
-    printf("Twiddle  dp: %.08f di: %.08f dd: %.08f\n", dp_[0], dp_[1], dp_[2]);
-    printf("Twiddle tot: %.08f\n", std::accumulate(dp_.begin(), dp_.end(), 0.0));
-    printf("Total error: %.3f\n", total_error_);
-    printf("Best  error: %.3f\n", best_error_);
-
-    update_count_++;
+    printf("Current  kp : %.08f ki: %.08f kd: %.08f\n", p_[0], p_[1], p_[2]);
+    printf("Best     kp : %.08f ki: %.08f kd: %.08f\n", best_p_[0], best_p_[1], best_p_[2]);
+    printf("Twiddle  dp : %.08f di: %.08f dd: %.08f\n", dp_[0], dp_[1], dp_[2]);
+    printf("Twiddle tot : %.08f\n", std::accumulate(dp_.begin(), dp_.end(), 0.0));
+    printf("Total error : %.3f\n", total_error_);
+    printf("Best  error : %.3f\n", best_error_);
 }
 
 double PID::control()
 {
-    auto control = -p_[0] * p_error_ - p_[1] * i_error_ - p_[2] * d_error_;
+    auto control = -1.0 * (p_[0] * p_error_ + p_[1] * i_error_ + p_[2] * d_error_);
 
     // Limit control between -1.0 and 1.0
     if (control > 1.0)
@@ -98,7 +117,7 @@ double PID::control()
 
 void PID::twiddle()
 {
-    // Do nothing if twiddle disabled or finished
+    // Do nothing if twiddle finished
     if (twiddle_finished_)
     {
         printf("Twiddle finished!\n");
@@ -107,8 +126,7 @@ void PID::twiddle()
 
     if (twiddle_step_ == 0)
     {
-        // Start with increment
-        p_[current_param_] += dp_[current_param_];
+        // Start with initial values
         twiddle_step_ = 1;
     }
     else if (twiddle_step_ == 1)
@@ -122,9 +140,13 @@ void PID::twiddle()
             dp_[current_param_] *= 1.1;
             p_[current_param_] += dp_[current_param_];
 
-            // Choose next parameter
+            // Choose next parameter, skip zero parameters
             if (twiddle_all_params_)
-                if (++current_param_ == p_.size()) current_param_ = 0;
+                do
+                {
+                    if (++current_param_ == p_.size()) current_param_ = 0;
+                }
+                while (p_[current_param_] == 0.0);
         }
         else
         {
@@ -153,22 +175,17 @@ void PID::twiddle()
         p_[current_param_] += dp_[current_param_];
         twiddle_step_ = 1;
 
-        // Choose next parameter
+        // Choose next parameter, skip zero parameters
         if (twiddle_all_params_)
-            if (++current_param_ == p_.size()) current_param_ = 0;
+            do
+            {
+                if (++current_param_ == p_.size()) current_param_ = 0;
+            }
+            while (p_[current_param_] == 0.0);
     }
 
     // Check if the twiddle goal has been reached
     twiddle_finished_ = std::accumulate(dp_.begin(), dp_.end(), 0.0) < tolerance_;
-
-    // Reset total error
-    total_error_ = 0;
-
-    // Reset update count
-    update_count_ = 0;
-
-    // Reset simulator when control coefficients are changed 
-    restart_simulator();
 }
 
 void PID::restart_simulator()

@@ -32,7 +32,8 @@ public:
      * \param stabilization_steps Number of error updates before total error calculation is started
      * \param twiddle_steps Number of error updates between two twiddle steps
      */
-    void twiddle_one_param(unsigned param, double twiddle_coefficient, double tolerance, int stabilization_steps, int twiddle_steps);
+    void twiddle_one_param(unsigned param, double twiddle_coefficient, double tolerance,
+                           int stabilization_steps, int twiddle_steps);
 
     /**
      * \brief Enable twiddle for all parameters
@@ -43,13 +44,15 @@ public:
      * \param stabilization_steps Number of error updates before total error calculation is started
      * \param twiddle_steps Number of error updates between two twiddle steps
      */
-    void twiddle_all_params(double dp, double di, double dd, double tolerance, int stabilization_steps, int twiddle_steps);
-    
+    void twiddle_all_params(double dp, double di, double dd, double tolerance,
+                            int stabilization_steps, int twiddle_steps);
+
     /**
-    * \brief Update the error variables based on error value.
-    * \param error Error value
-    */ 
-    void update_error(double error);
+    * \brief Update the error variables based on error value and speed.
+    * \param error Current error
+    * \param speed Current speed
+    */
+    void update_error(double error, double speed);
 
     /**
      * \brief Get control value
@@ -58,7 +61,7 @@ public:
     double control();
 
     /*
-     * Set the server for restarting simulator.
+     * Set the server for restarting simulator
      * @param ws The Websocket
      */
     void set_server(uWS::WebSocket<uWS::SERVER> ws);
@@ -75,16 +78,21 @@ private:
      */
     void twiddle();
 
-    double p_error_ = 0;    // Proportional error
-    double i_error_ = 0;    // Integral error
-    double d_error_ = 0;    // Derivation error
+    /**
+    * PID controller
+    */
+    double p_error_ = 0; // Proportional error
+    double i_error_ = 0; // Integral error
+    double d_error_ = 0; // Derivation error
 
-    double total_error_ = 0; // Total error    
+    std::vector<double> p_ = {0, 0, 0}; // Control coefficients
 
-    std::vector<double> p_ = { 0, 0, 0 }; // Control coefficients
-
+    /**
+    * Twiddle
+    */
     int update_count_ = 0; // Number of error updates between twiddle updates
 
+    double total_error_ = 0; // Total error    
 
     bool twiddle_enabled_ = false; // Enable/disable twiddle
 
@@ -104,9 +112,9 @@ private:
 
     double best_error_ = std::numeric_limits<double>::infinity(); // Best twiddled error so far
 
-    std::vector<double> dp_ = { 0, 0, 0 }; // Twiddle coefficients
+    std::vector<double> dp_ = {0, 0, 0}; // Twiddle coefficients
 
-    std::vector<double> best_p_ = { 0, 0, 0 }; // Best twiddled control coefficients so far
+    std::vector<double> best_p_ = {0, 0, 0}; // Best twiddled control coefficients so far
 
     uWS::WebSocket<uWS::SERVER> server_{}; // Websocket
 };

@@ -4,6 +4,7 @@
 #include "json.hpp"
 #include "PID.h"
 
+// Speed settings
 #define MIN_SPEED 10.0
 #define MAX_SPEED 50.0
 
@@ -39,12 +40,14 @@ int main()
 {
     uWS::Hub h;
 
-    PID steering_controller(0.115, 0.0, 2.0);
-    steering_controller.twiddle_one_param(2, 0.01, 0.000001, 100, 400);
+    //PID steering_controller(0.1, 0.0, 2.0); // init
+    //steering_controller.twiddle_one_param(0, 0.01, 0.005, 100, 1200); // twiddle 1
+    //steering_controller.twiddle_one_param(2, 0.01, 0.005, 100, 1200); // twiddle 2
 
+    PID steering_controller(0.11, 0.0, 2.3); 
+    
     PID speed_controller(0.1, 0.0, 1.0);
-    //speed_controller.twiddle_all_params(0.01, 0.0, 0.01, 0.000001, 100, 400);
-   
+
     h.onMessage([&steering_controller, &speed_controller](uWS::WebSocket<uWS::SERVER> ws, char* data, size_t length, uWS::OpCode opCode)
     {
         // "42" at the start of the message means there's a websocket message event.
@@ -75,28 +78,28 @@ int main()
                      */         
 
                     // update errors and get control values for steering and speed
-                    steering_controller.update_error(cte);       
+                    steering_controller.update_error(cte, speed);
                     const auto steer_control = steering_controller.control();
 
                     // The smaller the steering angle, the greater the target speed
                     const auto target_speed = (MAX_SPEED - MIN_SPEED) * (1.0 - steer_control * steer_control) + MIN_SPEED;
                     const auto speed_error = speed - target_speed;
 
-                    speed_controller.update_error(speed_error);
+                    speed_controller.update_error(speed_error, speed);
                     const auto speed_control = speed_controller.control();
-                                                    
+
                     printf("**************** Control Monitoring ****************\n");
-                    printf("Speed        : %3.4f\n", speed);
-                    printf("Angle        : %3.4f\n", angle);
-                    printf("CTE          : %3.4f\n", cte);
-                    printf("Speed error  : %3.4f\n", speed_error);
-                    printf("Target speed : %3.4f\n", target_speed);
-                    printf("Steer ctrl   : %3.4f\n", steer_control);
-                    printf("Speed ctrl   : %3.4f\n", speed_control);
-                
+                    printf("Speed       : %3.4f\n", speed);
+                    printf("Angle       : %3.4f\n", angle);
+                    printf("CTE         : %3.4f\n", cte);
+                    printf("Speed error : %3.4f\n", speed_error);
+                    printf("Target speed: %3.4f\n", target_speed);
+                    printf("Steer ctrl  : %3.4f\n", steer_control);
+                    printf("Speed ctrl  : %3.4f\n", speed_control);
+             
                     json msgJson;
                     msgJson["steering_angle"] = steer_control;
-                    msgJson["throttle"] = 0.3; // speed_control;
+                    msgJson["throttle"] = speed_control; 
                     auto msg = "42[\"steer\"," + msgJson.dump() + "]";
                     //std::cout << msg << std::endl;
                     ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT); 
